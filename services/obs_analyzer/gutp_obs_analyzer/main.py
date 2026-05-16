@@ -1,5 +1,9 @@
 """
-CS-OBS-ANALYZER — 観測データ分析・評価ワーカー (FUN-OBS-002, FUN-OBS-004)
+CS-OBS-ANALYZER — 観測データ分析・評価ワーカー
+
+機能: FUN-OBS-002 IoTEvent ルール評価 → Issue 生成判定
+      FUN-OBS-004 Report トレンド分析
+      FUN-OBS-007 未評価Report 滞留エスカレーション（IF-NOTIFY-001 publish, 未実装）
 
 NATS から obs.iot-event.created / obs.report.created を購読し、
 ルールエンジンで評価して Issue 生成が必要な場合は CS-ISSUE-MANAGER (IF-ISSUE-001) を呼ぶ。

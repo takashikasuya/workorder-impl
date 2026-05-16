@@ -1,5 +1,9 @@
 """
-CS-TICKET-MANAGER — Ticket / Estimate 管理サービス (FUN-TICKET-001~003)
+CS-TICKET-MANAGER — Ticket / Estimate 管理サービス
+
+機能: FUN-TICKET-001 Ticket 起票
+      FUN-TICKET-002 Estimate 起票
+      FUN-TICKET-003 Estimate 承認（NATS publish → WO 自動発行トリガー）
 
 提供: IF-TICKET-001 (REST CRUD), IF-TICKET-002 (NATS ticket.estimate.approved)
 購読: IF-ISSUE-002 (NATS issue.created) — Issue 生成イベント受信
