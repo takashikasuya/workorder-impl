@@ -65,6 +65,9 @@ services:
       obs-collector:
         condition: service_healthy
 
+  # ── SOI-WOM: ワークオーダー管理 ───────────────────────────────────
+
+  # CS-WO-SCHEDULER は ADR-004 により SOI-WOM 所属
   wo-scheduler:
     build:
       context: .
@@ -73,12 +76,11 @@ services:
       - ISSUE_MANAGER_URL=http://issue-manager:8000
       - TICKET_MANAGER_URL=http://ticket-manager:8000
       - WO_MANAGER_URL=http://wo-manager:8000
+      - BUILDING_REGISTRY_URL=http://building-registry:8000
       - SCHEDULE_INTERVAL_SEC=300
     depends_on:
       issue-manager:
         condition: service_healthy
-
-  # ── SOI-WOM: ワークオーダー管理 ───────────────────────────────────
 
   issue-manager:
     build:
@@ -147,3 +149,41 @@ services:
       test: ["CMD", "curl", "-sf", "http://localhost:8000/healthz"]
       interval: 10s
       retries: 6
+
+  # CS-OPS-DASHBOARD — 運用管理ダッシュボード BFF (IF-OPS-001 / PR #6)
+  ops-dashboard:
+    build:
+      context: .
+      dockerfile: services/ops_dashboard/Dockerfile
+    ports:
+      - "8006:8000"
+    environment:
+      - ISSUE_MANAGER_URL=http://issue-manager:8000
+      - OBS_COLLECTOR_URL=http://obs-collector:8000
+      - TICKET_MANAGER_URL=http://ticket-manager:8000
+      - WO_MANAGER_URL=http://wo-manager:8000
+      - PAYMENT_MANAGER_URL=http://payment-manager:8000
+      - BUILDING_REGISTRY_URL=http://building-registry:8000
+    depends_on:
+      wo-manager:
+        condition: service_healthy
+      payment-manager:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/healthz"]
+      interval: 10s
+      retries: 6
+
+  # CS-NOTIFY-DISPATCHER — 通知ディスパッチャー (IF-NOTIFY-002 / ADR-003 / PR #7)
+  notify-dispatcher:
+    build:
+      context: .
+      dockerfile: services/notify_dispatcher/Dockerfile
+    environment:
+      - NATS_URL=nats://nats:4222
+      - NOTIFY_ADAPTER=${NOTIFY_ADAPTER:-email}
+    depends_on:
+      nats:
+        condition: service_healthy
+      wo-manager:
+        condition: service_healthy

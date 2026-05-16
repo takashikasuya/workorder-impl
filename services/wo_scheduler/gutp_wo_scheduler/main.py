@@ -1,10 +1,12 @@
 """
-CS-WO-SCHEDULER — 予防保全スケジューラー (FUN-OBS-005)
+CS-WO-SCHEDULER — 予防保全スケジューラー (FUN-SCHEDULE-001, FUN-SCHEDULE-002)
 
-定期バッチで予防保全スケジュールを評価し、
+SOI-WOM 所属（ADR-004）。定期バッチで予防保全スケジュールを評価し、
 条件成立時に StandardIssue → 定型Ticket → WorkOrder を自動発行する。
+スケジュール CRUD（FUN-SCHEDULE-002 / IF-SCHEDULE-001）も担う。
 
-依存: IF-ISSUE-001 (issue-manager), IF-TICKET-001 (ticket-manager), IF-WO-001 (wo-manager)
+依存: IF-ISSUE-001 (issue-manager), IF-TICKET-001 (ticket-manager),
+      IF-WO-001 (wo-manager), IF-BUILDING-002 (building-registry)
 """
 
 from __future__ import annotations
@@ -21,7 +23,7 @@ SCHEDULE_INTERVAL_SEC = int(os.getenv("SCHEDULE_INTERVAL_SEC", "300"))
 
 
 async def run_cycle(client: httpx.AsyncClient) -> None:
-    """1スケジュールサイクルを実行する (FUN-OBS-005)。
+    """1スケジュールサイクルを実行する (FUN-SCHEDULE-001)。
 
     TODO: スケジュール定義を DB/設定ファイルから読み込む。
     """

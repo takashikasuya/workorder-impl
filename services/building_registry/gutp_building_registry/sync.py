@@ -1,5 +1,5 @@
 """
-建物トポロジー同期エンジン (FUN-OBS-006)
+建物トポロジー同期エンジン (FUN-BUILDING-001)
 
 ビルOS から Building/Floor/Space/Device/Point 階層を取得し、
 内部レジストリに保存する。定期的に再同期する。

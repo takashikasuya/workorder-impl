@@ -1,8 +1,10 @@
 """
-CS-WO-MANAGER — WorkOrder 管理サービス (FUN-WO-001~006)
+CS-WO-MANAGER — WorkOrder 管理サービス (FUN-WO-001~007)
 
-提供: IF-WO-001 (REST CRUD), IF-WO-002 (Webhook 通知)
+提供: IF-WO-001 (REST CRUD),
+      IF-WO-002 (NATS 通知イベント: wo.assigned / wo.emergency.completed, ADR-003)
 購読: IF-TICKET-002 (NATS ticket.estimate.approved) — WO 自動発行トリガー
+備考: 緊急WO即時発行 FUN-WO-007 / InProgress自動遷移 / Booking conflicted は未実装
 """
 
 from __future__ import annotations

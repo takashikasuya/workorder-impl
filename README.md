@@ -24,15 +24,24 @@ workorder-impl/
 │           ├── base.py          # Connector Protocol / ConnectorRegistry
 │           └── rest/
 │               └── router.py   # REST コネクタ（ビルOS → Webhook）
-└── services/
-    ├── obs_collector/           # CS-OBS-COLLECTOR  :8001
-    ├── obs_analyzer/            # CS-OBS-ANALYZER   (worker)
-    ├── wo_scheduler/            # CS-WO-SCHEDULER   (batch)
-    ├── issue_manager/           # CS-ISSUE-MANAGER  :8002
-    ├── ticket_manager/          # CS-TICKET-MANAGER :8003
-    ├── wo_manager/              # CS-WO-MANAGER     :8004
-    └── payment_manager/         # CS-PAYMENT-MANAGER:8005
+└── services/                   # 10 CS（workorder-systems の systems.yaml と一致）
+    ├── obs_collector/           # CS-OBS-COLLECTOR     :8001  SOI-OBS
+    ├── obs_analyzer/            # CS-OBS-ANALYZER      (worker) SOI-OBS
+    ├── building_registry/       # CS-BUILDING-REGISTRY :8000  SOI-OBS
+    ├── issue_manager/           # CS-ISSUE-MANAGER     :8002  SOI-WOM
+    ├── ticket_manager/          # CS-TICKET-MANAGER    :8003  SOI-WOM
+    ├── wo_manager/              # CS-WO-MANAGER        :8004  SOI-WOM
+    ├── payment_manager/         # CS-PAYMENT-MANAGER   :8005  SOI-WOM
+    ├── ops_dashboard/           # CS-OPS-DASHBOARD     :8006  SOI-WOM (BFF, PR #6)
+    ├── notify_dispatcher/       # CS-NOTIFY-DISPATCHER (worker) SOI-WOM (ADR-003)
+    └── wo_scheduler/            # CS-WO-SCHEDULER      (batch) SOI-WOM (ADR-004)
 ```
+
+> **アーキ同期メモ**: 本リポジトリは雛形段階。`workorder-systems` の
+> 確定アーキ（10CS / ADR-001〜004）に対し、以下の挙動は **未実装**:
+> Report評価→Issue非同期（obs.report.evaluated）/ Issue pending_review・review /
+> Booking conflicted / 緊急WO即時発行(FUN-WO-007) / 未評価Reportエスカレーション(FUN-OBS-007) /
+> WO InProgress自動遷移 / ops_dashboard・notify_dispatcher のロジック。
 
 ---
 

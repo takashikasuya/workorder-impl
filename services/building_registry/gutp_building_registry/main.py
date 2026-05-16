@@ -1,5 +1,5 @@
 """
-CS-BUILDING-REGISTRY — 建物構成レジストリ (FUN-OBS-006)
+CS-BUILDING-REGISTRY — 建物構成レジストリ (FUN-BUILDING-001)
 
 提供: IF-BUILDING-002 — 内部 REST API（Space/Device 一覧照会）
 依存: IF-BUILDING-001 — ビルOS REST API（外部）
