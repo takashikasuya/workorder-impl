@@ -6,13 +6,13 @@ CS-PAYMENT-MANAGER — 支払い管理サービス (FUN-PAYMENT-001)
 """
 
 from __future__ import annotations
+
 import os
 import uuid
 from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import FastAPI, HTTPException
-
 from gutp.schemas.payment import Payment, PaymentCreate, PaymentStatus
 
 WO_MANAGER_URL = os.getenv("WO_MANAGER_URL", "http://wo-manager:8000")

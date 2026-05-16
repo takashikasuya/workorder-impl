@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import os
 
-import httpx
 from fastapi import FastAPI, Query
 
 # 集約先 CS（IF-* に対応）

@@ -6,13 +6,12 @@ NATS から obs.iot-event.created / obs.report.created を購読し、
 """
 
 from __future__ import annotations
+
 import asyncio
-import json
 import os
 
 import httpx
 import nats
-
 from gutp.events.subjects import OBS
 from gutp.schemas.issue import IssueCreate, IssueType
 from gutp.schemas.observation import IoTEvent, Report
@@ -49,7 +48,7 @@ async def main() -> None:
                 await client.post("/issues", content=issue_data.model_dump_json())
 
         async def on_report(msg: nats.aio.msg.Msg) -> None:
-            report = Report.model_validate_json(msg.data)
+            _report = Report.model_validate_json(msg.data)
             # TODO: トレンド分析ロジック (FUN-OBS-004)
 
         await nc.subscribe(OBS.IOT_EVENT_CREATED, cb=on_iot_event)

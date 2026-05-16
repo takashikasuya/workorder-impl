@@ -6,9 +6,11 @@ workorder_type: gutp:WorkOrderTypeScheme の SKOS Concept に準拠。
 """
 
 from __future__ import annotations
+
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
+
 from pydantic import BaseModel, ConfigDict, Field
 
 

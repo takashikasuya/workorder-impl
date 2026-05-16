@@ -5,14 +5,13 @@ CS-ISSUE-MANAGER — Issue 管理サービス (FUN-ISSUE-001, FUN-ISSUE-002)
 """
 
 from __future__ import annotations
+
 import os
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime
 
 import nats
 from fastapi import FastAPI, HTTPException
-
 from gutp.events.subjects import ISSUE
 from gutp.schemas.issue import Issue, IssueCreate
 

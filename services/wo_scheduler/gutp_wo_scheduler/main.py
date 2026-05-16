@@ -10,6 +10,7 @@ SOI-WOM 所属（ADR-004）。定期バッチで予防保全スケジュール�
 """
 
 from __future__ import annotations
+
 import asyncio
 import os
 from datetime import datetime

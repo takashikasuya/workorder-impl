@@ -6,9 +6,11 @@ IssueType は gutp:IssueTypeScheme の SKOS Concept に準拠する。
 """
 
 from __future__ import annotations
+
 from datetime import datetime
 from enum import StrEnum
 from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 

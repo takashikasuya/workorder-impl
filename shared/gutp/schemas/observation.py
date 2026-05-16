@@ -7,11 +7,12 @@ gutp:Report    subClassOf  gutp:ObservationObject
 """
 
 from __future__ import annotations
+
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated, Literal
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Annotated
 
+from pydantic import BaseModel, ConfigDict, Field
 
 # ── IoTEvent ──────────────────────────────────────────────────────────────────
 

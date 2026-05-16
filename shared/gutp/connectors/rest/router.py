@@ -13,12 +13,11 @@ obs_collector/main.py がこのルーターをマウントし、on_event に NAT
 """
 
 from __future__ import annotations
-from datetime import datetime
-from typing import Any
-from fastapi import APIRouter, HTTPException, Request, status
 
-from ..base import IngressEvent, OnEventCallback
+from fastapi import APIRouter, status
+
 from ...schemas.observation import IoTEventCreate, ReportCreate
+from ..base import IngressEvent, OnEventCallback
 
 
 def make_rest_router(on_event: OnEventCallback) -> APIRouter:

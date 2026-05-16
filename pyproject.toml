@@ -9,5 +9,8 @@ members = ["shared", "services/*"]
 [dependency-groups]
 dev = ["ruff>=0.4", "pyyaml>=6.0"]
 
+[tool.ruff]
+line-length = 120
+
 [tool.ruff.lint]
 select = ["E", "F", "I"]

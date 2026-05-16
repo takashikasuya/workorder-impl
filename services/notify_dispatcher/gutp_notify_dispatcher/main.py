@@ -20,7 +20,6 @@ import logging
 import os
 
 import nats
-
 from gutp.events.subjects import OBS, WO
 
 NATS_URL = os.getenv("NATS_URL", "nats://localhost:4222")

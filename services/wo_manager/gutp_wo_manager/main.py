@@ -8,6 +8,7 @@ CS-WO-MANAGER — WorkOrder 管理サービス (FUN-WO-001~007)
 """
 
 from __future__ import annotations
+
 import os
 import uuid
 from contextlib import asynccontextmanager
@@ -15,13 +16,15 @@ from datetime import datetime
 
 import nats
 from fastapi import FastAPI, HTTPException
-
 from gutp.events.subjects import TICKET
 from gutp.schemas.ticket import Estimate
 from gutp.schemas.workorder import (
-    Booking, BookingCreate,
-    ServiceTask, ServiceTaskCreate,
-    WorkOrder, WorkOrderCreate, WorkOrderStatus,
+    Booking,
+    BookingCreate,
+    ServiceTask,
+    WorkOrder,
+    WorkOrderCreate,
+    WorkOrderStatus,
 )
 
 NATS_URL = os.getenv("NATS_URL", "nats://localhost:4222")

@@ -10,7 +10,7 @@ CS-OBS-COLLECTOR — 観測データ収集サービス (FUN-OBS-001, FUN-OBS-003
 """
 
 from __future__ import annotations
-import json
+
 import os
 import uuid
 from contextlib import asynccontextmanager
@@ -18,7 +18,6 @@ from datetime import datetime
 
 import nats
 from fastapi import FastAPI
-
 from gutp.connectors.base import ConnectorRegistry, IngressEvent
 from gutp.connectors.rest.router import make_rest_router
 from gutp.events.subjects import OBS

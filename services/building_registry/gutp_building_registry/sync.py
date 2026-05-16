@@ -77,8 +77,7 @@ class TopologyRegistry:
                 device_details = await client.get_device_details(building.dt_id)
                 spaces_raw = await client.get_spaces()
 
-                # Space → フロア・ビル文脈を補完
-                floor_map = {f.dt_id: f for f in floors}
+                # Space → ビル文脈を補完（フロア詳細は将来の拡張用）
                 spaces: list[SpaceNode] = [
                     SpaceNode(
                         dt_id=s.dt_id,

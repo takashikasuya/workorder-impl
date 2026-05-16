@@ -15,13 +15,12 @@ CS-WO-MANAGER 等が ServiceTask の performedAt / performedOn を設定する�
 """
 
 from __future__ import annotations
+
 import asyncio
 import logging
-import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
-
 from gutp.clients.building_os import BuildingOSClient
 
 from .sync import TopologyRegistry

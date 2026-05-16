@@ -9,9 +9,11 @@ OWL備考:
 """
 
 from __future__ import annotations
+
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
+
 from pydantic import BaseModel, ConfigDict, Field
 
 

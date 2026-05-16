@@ -6,9 +6,11 @@ gutp:currncy は OWL 上のタイポ。本スキーマでは currency として�
 """
 
 from __future__ import annotations
+
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
