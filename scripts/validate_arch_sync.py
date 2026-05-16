@@ -158,8 +158,18 @@ def main() -> None:
 
     systems_yaml = args.systems_dir / args.systems_file
     if not systems_yaml.exists():
-        print(f"ERROR: {systems_yaml} が見つかりません", file=sys.stderr)
-        sys.exit(1)
+        # ルートに見つからなければリポジトリ内を再帰検索
+        candidates = sorted(args.systems_dir.rglob(args.systems_file))
+        if candidates:
+            systems_yaml = candidates[0]
+            print(f"INFO: {args.systems_file} を {systems_yaml} で発見しました")
+        else:
+            yaml_files = sorted(args.systems_dir.rglob("*.yaml")) + sorted(args.systems_dir.rglob("*.yml"))
+            print(f"ERROR: {args.systems_file} が {args.systems_dir} 以下に見つかりません", file=sys.stderr)
+            print("  検出された YAML ファイル:", file=sys.stderr)
+            for f in yaml_files[:20]:
+                print(f"    {f.relative_to(args.systems_dir)}", file=sys.stderr)
+            sys.exit(1)
 
     data = yaml.safe_load(systems_yaml.read_text())
     cs_map = parse_cs_map(data)

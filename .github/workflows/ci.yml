@@ -107,6 +107,10 @@ jobs:
         if: steps.prereq.outputs.enabled == 'true'
         run: uv sync --frozen --group dev
 
+      - name: Show workorder-systems layout (debug)
+        if: steps.prereq.outputs.enabled == 'true'
+        run: find workorder-systems -maxdepth 3 \( -name "*.yaml" -o -name "*.yml" \) | sort
+
       - name: Validate architecture sync
         if: steps.prereq.outputs.enabled == 'true'
         run: |
