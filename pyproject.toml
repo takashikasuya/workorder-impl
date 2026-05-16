@@ -7,7 +7,18 @@ requires-python = ">=3.12"
 members = ["shared", "services/*"]
 
 [dependency-groups]
-dev = ["ruff>=0.4", "pyyaml>=6.0"]
+dev = [
+    "ruff>=0.4",
+    "pyyaml>=6.0",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "anyio[trio]>=4.0",
+    "respx>=0.21",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["services"]
 
 [tool.ruff]
 line-length = 120

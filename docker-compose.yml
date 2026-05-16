@@ -124,6 +124,7 @@ services:
       - "8004:8000"
     environment:
       - NATS_URL=nats://nats:4222
+      - TICKET_MANAGER_URL=http://ticket-manager:8000
     depends_on:
       nats:
         condition: service_healthy

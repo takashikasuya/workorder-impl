@@ -30,7 +30,25 @@ jobs:
             | xargs uv run python -m py_compile
           echo "py_compile: all files OK"
 
-  # ── ② uv workspace 整合性 ──────────────────────────────────────────
+  # ── ② Unit Tests ─────────────────────────────────────────────────
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Install dev deps
+        run: uv sync --frozen --group dev --all-packages
+
+      - name: pytest
+        run: uv run pytest services/ -v
+
+  # ── ③ uv workspace 整合性 ──────────────────────────────────────────
   workspace:
     name: uv workspace
     runs-on: ubuntu-latest
@@ -45,7 +63,7 @@ jobs:
       - name: uv sync --frozen (全サービス)
         run: uv sync --frozen --all-packages
 
-  # ── ③ Docker Compose YAML 検証 ─────────────────────────────────────
+  # ── ④ Docker Compose YAML 検証 ─────────────────────────────────────
   compose:
     name: docker-compose.yml validate
     runs-on: ubuntu-latest
@@ -63,7 +81,7 @@ jobs:
       - name: docker compose config (dry-run)
         run: docker compose config --quiet
 
-  # ── ④ アーキ整合性チェック (workorder-systems との比較) ───────────
+  # ── ⑤ アーキ整合性チェック (workorder-systems との比較) ───────────
   #
   # 前提: リポジトリ Settings > Secrets に SYSTEMS_REPO_TOKEN を登録する。
   #        (workorder-systems への read 権限を持つ PAT)

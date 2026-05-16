@@ -17,15 +17,17 @@ CS-WO-MANAGER — WorkOrder 管理サービス
 
 from __future__ import annotations
 
+import logging
 import os
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 
+import httpx
 import nats
 from fastapi import FastAPI, HTTPException
-from gutp.events.subjects import TICKET
-from gutp.schemas.ticket import Estimate
+from gutp.events.subjects import TICKET, WO
+from gutp.schemas.ticket import Estimate, Ticket
 from gutp.schemas.workorder import (
     Booking,
     BookingCreate,
@@ -35,40 +37,21 @@ from gutp.schemas.workorder import (
     WorkOrderStatus,
 )
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
+
 NATS_URL = os.getenv("NATS_URL", "nats://localhost:4222")
+TICKET_MANAGER_URL = os.getenv("TICKET_MANAGER_URL", "http://ticket-manager:8000")
 
 _nc: nats.aio.client.Client | None = None
+_http_client: httpx.AsyncClient | None = None
 _work_orders: dict[str, WorkOrder] = {}
 _tasks: dict[str, ServiceTask] = {}
 _bookings: dict[str, Booking] = {}
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    global _nc
-    _nc = await nats.connect(NATS_URL)
-
-    async def on_estimate_approved(msg: nats.aio.msg.Msg) -> None:
-        """Estimate 承認イベントを受信して WorkOrder 自動発行フローを起動する (FUN-WO-001)。"""
-        estimate = Estimate.model_validate_json(msg.data)
-        # TODO: Ticket から WorkOrder を自動生成するロジックを実装する
-        print(f"[wo-manager] estimate approved: {estimate.estimate_id} → ticket {estimate.ticket_id}")
-
-    await _nc.subscribe(TICKET.ESTIMATE_APPROVED, cb=on_estimate_approved)
-    yield
-    await _nc.drain()
-
-
-app = FastAPI(title="wo-manager", lifespan=lifespan)
-
-
-@app.get("/healthz")
-async def health() -> dict[str, str]:
-    return {"status": "ok"}
-
-
-@app.post("/work-orders", status_code=201)
-async def create_work_order(body: WorkOrderCreate) -> WorkOrder:
+def _build_work_order(body: WorkOrderCreate) -> WorkOrder:
+    """WorkOrderCreate から WorkOrder を構築してインメモリに保存する。"""
     wo_id = str(uuid.uuid4())
     task_ids: list[str] = []
     for task_req in body.tasks:
@@ -89,6 +72,60 @@ async def create_work_order(body: WorkOrderCreate) -> WorkOrder:
     )
     _work_orders[wo_id] = record
     return record
+
+
+async def _auto_create_work_order(
+    estimate: Estimate,
+    http_client: httpx.AsyncClient,
+    nc: nats.aio.client.Client,
+) -> WorkOrder | None:
+    """Estimate 承認をもとに WorkOrder を自動生成し wo.assigned を publish する (FUN-WO-001)."""
+    resp = await http_client.get(f"/tickets/{estimate.ticket_id}")
+    if resp.status_code != 200:
+        logger.warning("ticket %s fetch failed (%d), WO 生成をスキップ", estimate.ticket_id, resp.status_code)
+        return None
+    ticket = Ticket.model_validate(resp.json())
+    wo = _build_work_order(
+        WorkOrderCreate(
+            ticket_id=ticket.ticket_id,
+            title=ticket.title,
+            work_order_type="CorrectiveMaintenance",
+            description=estimate.description,
+        )
+    )
+    await nc.publish(WO.ASSIGNED, wo.model_dump_json().encode())
+    logger.info("wo.assigned published: %s (ticket=%s)", wo.work_order_id, ticket.ticket_id)
+    return wo
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global _nc, _http_client
+    _nc = await nats.connect(NATS_URL)
+    _http_client = httpx.AsyncClient(base_url=TICKET_MANAGER_URL)
+
+    async def on_estimate_approved(msg: nats.aio.msg.Msg) -> None:
+        """Estimate 承認イベントを受信して WorkOrder 自動発行フローを起動する (FUN-WO-001)。"""
+        estimate = Estimate.model_validate_json(msg.data)
+        await _auto_create_work_order(estimate, _http_client, _nc)
+
+    await _nc.subscribe(TICKET.ESTIMATE_APPROVED, cb=on_estimate_approved)
+    yield
+    await _http_client.aclose()
+    await _nc.drain()
+
+
+app = FastAPI(title="wo-manager", lifespan=lifespan)
+
+
+@app.get("/healthz")
+async def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+@app.post("/work-orders", status_code=201)
+async def create_work_order(body: WorkOrderCreate) -> WorkOrder:
+    return _build_work_order(body)
 
 
 @app.get("/work-orders/{wo_id}")
