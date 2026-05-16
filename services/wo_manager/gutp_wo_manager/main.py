@@ -32,6 +32,7 @@ from gutp.schemas.workorder import (
     Booking,
     BookingCreate,
     BookingStatus,
+    EmergencyWorkOrderCreate,
     ServiceTask,
     WorkOrder,
     WorkOrderCreate,
@@ -133,6 +134,30 @@ async def create_work_order(body: WorkOrderCreate) -> WorkOrder:
     return _build_work_order(body)
 
 
+@app.post("/work-orders/emergency", status_code=201)
+async def create_emergency_work_order(body: EmergencyWorkOrderCreate) -> WorkOrder:
+    """Ticket 不要で即時 IN_PROGRESS の WO を作成し wo.assigned を publish する (FUN-WO-007)。"""
+    wo_id = str(uuid.uuid4())
+    task_ids: list[str] = []
+    for task_req in body.tasks:
+        task = ServiceTask(task_id=str(uuid.uuid4()), work_order_id=wo_id, **task_req.model_dump())
+        _tasks[task.task_id] = task
+        task_ids.append(task.task_id)
+    wo = WorkOrder(
+        work_order_id=wo_id,
+        ticket_id=body.ticket_id,
+        title=body.reason,
+        work_order_type="EmergencyMaintenance",
+        work_order_status=WorkOrderStatus.IN_PROGRESS,
+        started_at=datetime.utcnow(),
+        task_ids=task_ids,
+    )
+    _work_orders[wo_id] = wo
+    await _nc.publish(WO.ASSIGNED, wo.model_dump_json().encode())
+    logger.info("emergency wo created and wo.assigned published: %s", wo_id)
+    return wo
+
+
 @app.get("/work-orders/{wo_id}")
 async def get_work_order(wo_id: str) -> WorkOrder:
     record = _work_orders.get(wo_id)
@@ -177,6 +202,19 @@ async def create_booking(body: BookingCreate) -> Booking:
     record = Booking(booking_id=str(uuid.uuid4()), **body.model_dump())
     _bookings[record.booking_id] = record
     return record
+
+
+@app.patch("/work-orders/{wo_id}/complete-emergency")
+async def complete_emergency_work_order(wo_id: str) -> WorkOrder:
+    """緊急 WO を完了状態にして wo.emergency.completed を publish する (FUN-WO-007)。"""
+    wo = _work_orders.get(wo_id)
+    if not wo:
+        raise HTTPException(404, detail="WorkOrder not found")
+    wo.work_order_status = WorkOrderStatus.COMPLETED
+    wo.done_at = datetime.utcnow()
+    await _nc.publish(WO.EMERGENCY_COMPLETED, wo.model_dump_json().encode())
+    logger.info("emergency wo completed and wo.emergency.completed published: %s", wo_id)
+    return wo
 
 
 @app.patch("/bookings/{booking_id}/confirm")

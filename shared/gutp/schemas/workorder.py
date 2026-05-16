@@ -105,12 +105,21 @@ class WorkOrderCreate(BaseModel):
     )
 
 
+class EmergencyWorkOrderCreate(BaseModel):
+    """緊急 WO 生成リクエスト（FUN-WO-007）。Ticket 承認フローをバイパスして即時発行する。"""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    reason: str = Field(description="緊急理由（必須）")
+    ticket_id: str | None = Field(None, description="関連 Ticket ID（任意）")
+    tasks: list[ServiceTaskCreate] = Field(default_factory=list)
+
+
 class WorkOrder(BaseModel):
     """永続化済み WorkOrder。"""
     model_config = ConfigDict(str_strip_whitespace=True)
 
     work_order_id: str = Field(description="gutp:workOrderID")
-    ticket_id: str = Field(description="gutp:isWorkOrderOf")
+    ticket_id: str | None = Field(None, description="gutp:isWorkOrderOf")
     title: str
     work_order_type: str = Field(description="gutp:workOrderType")
     work_order_status: WorkOrderStatus = Field(WorkOrderStatus.OPEN, description="gutp:workOrderStatus")
