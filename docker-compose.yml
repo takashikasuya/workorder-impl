@@ -59,6 +59,7 @@ services:
     environment:
       - NATS_URL=nats://nats:4222
       - ISSUE_MANAGER_URL=http://issue-manager:8000
+      - ESCALATION_THRESHOLD_SEC=1800
     depends_on:
       nats:
         condition: service_healthy
