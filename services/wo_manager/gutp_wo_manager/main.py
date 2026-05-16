@@ -210,6 +210,8 @@ async def complete_emergency_work_order(wo_id: str) -> WorkOrder:
     wo = _work_orders.get(wo_id)
     if not wo:
         raise HTTPException(404, detail="WorkOrder not found")
+    if wo.work_order_type != "EmergencyMaintenance":
+        raise HTTPException(409, detail="WorkOrder is not an emergency work order")
     wo.work_order_status = WorkOrderStatus.COMPLETED
     wo.done_at = datetime.utcnow()
     await _nc.publish(WO.EMERGENCY_COMPLETED, wo.model_dump_json().encode())

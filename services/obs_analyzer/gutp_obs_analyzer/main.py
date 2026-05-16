@@ -77,7 +77,7 @@ async def _scan_and_escalate(nc: nats.aio.client.Client) -> None:
     ]
     for rid, report in to_escalate:
         await nc.publish(OBS.REPORT_ESCALATION, report.model_dump_json().encode())
-        del _pending_reports[rid]
+        _pending_reports.pop(rid, None)
         logger.info("escalated report: %s", rid)
 
 
@@ -111,7 +111,10 @@ async def main() -> None:
         async def _escalation_loop() -> None:
             while True:
                 await asyncio.sleep(ESCALATION_CHECK_INTERVAL_SEC)
-                await _scan_and_escalate(nc)
+                try:
+                    await _scan_and_escalate(nc)
+                except Exception:
+                    logger.exception("escalation scan 失敗")
 
         await nc.subscribe(OBS.IOT_EVENT_CREATED, cb=on_iot_event)
         await nc.subscribe(OBS.REPORT_CREATED, cb=on_report)

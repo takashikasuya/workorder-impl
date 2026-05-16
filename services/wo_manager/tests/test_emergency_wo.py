@@ -85,3 +85,17 @@ async def test_complete_emergency_not_found(ac, mock_nc):
     m._nc = mock_nc
     resp = await ac.patch("/work-orders/nonexistent-id/complete-emergency")
     assert resp.status_code == 404
+
+
+async def test_complete_emergency_type_mismatch(ac):
+    """通常 WO の wo_id に PATCH → 409。"""
+    create_resp = await ac.post("/work-orders", json={
+        "ticket_id": "t-001",
+        "title": "通常WO",
+        "work_order_type": "CorrectiveMaintenance",
+    })
+    assert create_resp.status_code == 201
+    wo_id = create_resp.json()["work_order_id"]
+
+    resp = await ac.patch(f"/work-orders/{wo_id}/complete-emergency")
+    assert resp.status_code == 409
