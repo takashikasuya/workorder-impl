@@ -17,7 +17,7 @@ from __future__ import annotations
 import os
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 
 # 集約先 CS（IF-* に対応）
 ISSUE_MANAGER_URL = os.getenv("ISSUE_MANAGER_URL", "http://issue-manager:8000")
@@ -38,8 +38,8 @@ async def healthz() -> dict[str, str]:
 @app.get("/ops/flows")
 async def list_flows(
     status: str = "all",
-    type: str | None = None,
-    from_: str | None = None,
+    flow_type: str | None = Query(None, alias="type"),
+    from_date: str | None = Query(None, alias="from"),
     to: str | None = None,
 ) -> dict:
     """FUN-OPS-001 — 業務フロー状態の集約・提供。
@@ -49,7 +49,7 @@ async def list_flows(
     フラグを付与して返す。
     TODO: 各CS API からの集約ロジックを実装する。
     """
-    return {"flows": [], "filter": {"status": status, "type": type}}
+    return {"flows": [], "filter": {"status": status, "type": flow_type}}
 
 
 @app.get("/ops/flows/{flow_id}")

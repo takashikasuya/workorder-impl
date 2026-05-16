@@ -16,6 +16,7 @@ NOTE: 本ファイルはアーキ同期によるスケルトン。
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 
 import nats
@@ -26,6 +27,11 @@ NATS_URL = os.getenv("NATS_URL", "nats://localhost:4222")
 # IF-NOTIFY-002: 配信チャネル切り替え（email|slack|webhook|push|sms）
 NOTIFY_ADAPTER = os.getenv("NOTIFY_ADAPTER", "email")
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
+
+_QUEUE_GROUP = "notify-dispatcher"
+
 
 async def dispatch(topic: str, payload: bytes) -> None:
     """FUN-NOTIFY-001 — 受信イベントを NOTIFY_ADAPTER に従い配信する。
@@ -33,7 +39,7 @@ async def dispatch(topic: str, payload: bytes) -> None:
     TODO: adapter 実装（email=SMTP / slack=Webhook / webhook=HTTP /
           push=Push GW / sms=SMS GW）、リトライ、配信履歴記録。
     """
-    print(f"notify-dispatcher[{NOTIFY_ADAPTER}] <- {topic}: {payload[:120]!r}")
+    logger.info("notify-dispatcher[%s] <- %s: %r", NOTIFY_ADAPTER, topic, payload[:120])
 
 
 async def main() -> None:
@@ -43,11 +49,12 @@ async def main() -> None:
         await dispatch(msg.subject, msg.data)
 
     # IF-WO-002（CS-WO-MANAGER） / IF-NOTIFY-001（CS-OBS-ANALYZER）
-    await nc.subscribe(WO.ASSIGNED, cb=on_event)
-    await nc.subscribe(WO.EMERGENCY_COMPLETED, cb=on_event)
-    await nc.subscribe(OBS.REPORT_ESCALATION, cb=on_event)
+    # queue group により複数レプリカ起動時も各メッセージを1インスタンスのみが処理する
+    await nc.subscribe(WO.ASSIGNED, queue=_QUEUE_GROUP, cb=on_event)
+    await nc.subscribe(WO.EMERGENCY_COMPLETED, queue=_QUEUE_GROUP, cb=on_event)
+    await nc.subscribe(OBS.REPORT_ESCALATION, queue=_QUEUE_GROUP, cb=on_event)
 
-    print(f"notify-dispatcher: listening (adapter={NOTIFY_ADAPTER})")
+    logger.info("notify-dispatcher: listening (adapter=%s)", NOTIFY_ADAPTER)
     try:
         await asyncio.Future()  # run forever
     finally:
