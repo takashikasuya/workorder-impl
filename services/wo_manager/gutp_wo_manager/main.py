@@ -80,7 +80,11 @@ async def _auto_create_work_order(
     nc: nats.aio.client.Client,
 ) -> WorkOrder | None:
     """Estimate 承認をもとに WorkOrder を自動生成し wo.assigned を publish する (FUN-WO-001)."""
-    resp = await http_client.get(f"/tickets/{estimate.ticket_id}")
+    try:
+        resp = await http_client.get(f"/tickets/{estimate.ticket_id}")
+    except httpx.RequestError as exc:
+        logger.warning("ticket-manager への接続失敗 (%s), WO 生成をスキップ", exc)
+        return None
     if resp.status_code != 200:
         logger.warning("ticket %s fetch failed (%d), WO 生成をスキップ", estimate.ticket_id, resp.status_code)
         return None

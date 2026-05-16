@@ -82,3 +82,16 @@ async def test_estimate_approved_ticket_service_error():
 
     assert wo is None
     mock_nc.publish.assert_not_called()
+
+
+@respx.mock
+async def test_estimate_approved_ticket_connection_error():
+    """ticket-manager への接続失敗（RequestError）→ WO を生成せず例外を伝播させない。"""
+    respx.get(f"{TICKET_BASE}/tickets/t-001").mock(side_effect=httpx.ConnectError("refused"))
+    mock_nc = AsyncMock()
+
+    async with httpx.AsyncClient(base_url=TICKET_BASE) as client:
+        wo = await _auto_create_work_order(ESTIMATE, client, mock_nc)
+
+    assert wo is None
+    mock_nc.publish.assert_not_called()

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -16,17 +16,15 @@ def mock_nc():
 
 
 @pytest.fixture
-async def ac(mock_nc):
-    """NATS をモックした wo-manager の AsyncClient（lifespan 起動済み）。"""
-    with patch("gutp_wo_manager.main.nats.connect", return_value=mock_nc):
-        # グローバル状態をリセット
-        import gutp_wo_manager.main as m
+async def ac():
+    """wo-manager の AsyncClient。ASGITransport はリクエストを直接 ASGI に渡す（lifespan は起動しない）。"""
+    import gutp_wo_manager.main as m
 
-        m._work_orders.clear()
-        m._tasks.clear()
-        m._bookings.clear()
+    m._work_orders.clear()
+    m._tasks.clear()
+    m._bookings.clear()
 
-        from gutp_wo_manager.main import app
+    from gutp_wo_manager.main import app
 
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            yield client
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        yield client
