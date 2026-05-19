@@ -16,9 +16,12 @@ function transformBffFlows(bffFlows) {
     const woStatus = { Open: "wo_open", InProgress: "wo_in_progress",
                        Completed: "wo_completed" }[wo?.work_order_status] || "wo_open";
     const problem = bff.problem_flags?.[0] || "none";
+    const priority = ticket
+      ? (ticket.priority >= 8 ? "P1" : ticket.priority >= 5 ? "P2" : "P3")
+      : "P2";
     return {
-      id: issue.issue_id,
-      priority: "P2",
+      id: issue.issue_id || "",
+      priority,
       origin,
       building: null, floor: null, space: null,
       title: issue.title || "(無題)",
@@ -52,7 +55,7 @@ function exportFlowsCSV(flows) {
   const rows = flows.map(f =>
     cols.map(c => `"${String(f[c] ?? "").replace(/"/g, '""')}"`).join(",")
   );
-  const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv;charset=utf-8;" });
+  const blob = new Blob(["﻿" + [header, ...rows].join("\n")], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -115,13 +118,13 @@ function App() {
 
     if (kpi) xs = xs.filter(f => f.problem === kpi);
 
-    if (filters.building) xs = xs.filter(f => f.building === filters.building);
+    if (filters.building) xs = xs.filter(f => !f.building || f.building === filters.building);
 
     if (query.trim()) {
       const q = query.trim().toLowerCase();
       xs = xs.filter(f =>
         f.title.toLowerCase().includes(q) ||
-        f.id.toLowerCase().includes(q) ||
+        (f.id || "").toLowerCase().includes(q) ||
         (f.space || "").toLowerCase().includes(q) ||
         (f.floor || "").toLowerCase().includes(q) ||
         f.chain.some(c => (c.id || "").toLowerCase().includes(q))

@@ -170,8 +170,8 @@ function pickActions(flow) {
       tone: "primary",
     });
     actions.push({
-      key: "reject_report", at: "Report を却下",
-      desc: "PATCH /reports/{id}/evaluate · action=reject", forward: "IF-OBS-002",
+      key: "reject_report", at: "Report を却下（評価済みへ）",
+      desc: "POST /reports/{id}/evaluate · Issue生成なしで評価済みに遷移", forward: "IF-OBS-002",
       tone: "danger",
     });
   }
@@ -198,6 +198,7 @@ function pickActions(flow) {
     actions.push({
       key: "request_revision", at: "見積を差し戻し",
       desc: "PATCH /estimates/{id}/revise", forward: "IF-TICKET-001",
+      stub: true,
     });
   }
 
@@ -205,11 +206,12 @@ function pickActions(flow) {
     actions.push({
       key: "reassign", at: "担当を再アサイン",
       desc: "POST /ops/actions · booking.reassign", forward: "IF-WO-001",
-      tone: "primary",
+      tone: "primary", stub: true,
     });
     actions.push({
       key: "reschedule", at: "時間帯を変更",
       desc: "PATCH /bookings/{id} · start/end", forward: "IF-WO-001",
+      stub: true,
     });
   }
 
@@ -217,11 +219,12 @@ function pickActions(flow) {
     actions.push({
       key: "raise_priority", at: "優先度を上げる",
       desc: "PATCH /tickets/{id} · priority=+1", forward: "IF-TICKET-001",
-      tone: "primary",
+      tone: "primary", stub: true,
     });
     actions.push({
       key: "extend_due", at: "期限を延長",
       desc: "PATCH /tickets/{id} · dueAt+", forward: "IF-TICKET-001",
+      stub: true,
     });
   }
 
@@ -241,10 +244,12 @@ function pickActions(flow) {
   actions.push({
     key: "comment", at: "コメントを残す",
     desc: "監査証跡に記録される", forward: "IF-OPS-001",
+    stub: true,
   });
   actions.push({
     key: "open_cs", at: "対応CSの詳細画面を開く",
     desc: "新タブで CS UI へ", forward: "external",
+    stub: true,
   });
 
   return actions;
@@ -342,15 +347,20 @@ function DetailDrawer({ flow, open, onClose, onActionDone }) {
             <div className="actions-grid">
               {actions.map(a => {
                 const isRunning = executing === a.key;
+                const isDisabled = !!executing || !!a.stub;
                 return (
                   <button key={a.key}
                           className={"action-card" + (a.tone === "danger" ? " danger" : "")}
-                          onClick={() => handleAction(a.key)}
-                          disabled={!!executing}
-                          style={{ opacity: executing && !isRunning ? 0.5 : 1,
-                                   cursor: executing ? "not-allowed" : "pointer" }}>
+                          onClick={() => !a.stub && handleAction(a.key)}
+                          disabled={isDisabled}
+                          title={a.stub ? "未実装" : undefined}
+                          style={{
+                            opacity: (executing && !isRunning) || a.stub ? 0.45 : 1,
+                            cursor: isDisabled ? "not-allowed" : "pointer",
+                          }}>
                     <span className="at">
                       {isRunning ? "処理中…" : a.at}
+                      {a.stub && <span style={{ fontSize: 10, marginLeft: 6, color: "var(--c-text-4,#aaa)" }}>未実装</span>}
                     </span>
                     <span className="desc">{a.desc}</span>
                     <span className="cs-ref" style={{ marginTop: 4, alignSelf: "flex-start" }}>
