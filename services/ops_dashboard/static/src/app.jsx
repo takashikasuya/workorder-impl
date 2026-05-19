@@ -46,6 +46,21 @@ function transformBffFlows(bffFlows) {
   });
 }
 
+function exportFlowsCSV(flows) {
+  const cols = ["id", "title", "priority", "problem", "building", "floor", "space", "origin", "updatedAt"];
+  const header = cols.join(",");
+  const rows = flows.map(f =>
+    cols.map(c => `"${String(f[c] ?? "").replace(/"/g, '""')}"`).join(",")
+  );
+  const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `flows_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "density": "comfortable",
   "theme": "light",
@@ -55,15 +70,19 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 
 function App() {
   const [t, setTweak] = window.useTweaks(TWEAK_DEFAULTS);
-  const [liveFlows, setLiveFlows]     = useState([]);
-  const [nav, setNav]                 = useState("flows");
-  const [tab, setTab]                 = useState("all");
-  const [kpi, setKpi]                 = useState(null);
-  const [query, setQuery]             = useState("");
-  const [filters, setFilters]         = useState({ building: null, entity: null, agent: null, range: "直近 7日" });
-  const [selected, setSelected]       = useState(null);
-  const [drawerOpen, setDrawerOpen]   = useState(false);
-  const [manifestoOpen, setManifesto] = useState(() => {
+  const [liveFlows, setLiveFlows]         = useState([]);
+  const [nav, setNav]                     = useState("flows");
+  const [tab, setTab]                     = useState("all");
+  const [kpi, setKpi]                     = useState(null);
+  const [query, setQuery]                 = useState("");
+  const [filters, setFilters]             = useState({ building: null, entity: null, agent: null, range: "直近 7日" });
+  const [advFilters, setAdvFilters]       = useState({ priority: null, period: null, origin: null });
+  const [showAdvFilter, setShowAdvFilter] = useState(false);
+  const [selected, setSelected]           = useState(null);
+  const [drawerOpen, setDrawerOpen]       = useState(false);
+  const [bulkState, setBulkState]         = useState(null); // null | "confirm" | "running" | "done"
+  const [bulkResult, setBulkResult]       = useState(null); // { ok, failed }
+  const [manifestoOpen, setManifesto]     = useState(() => {
     try { return localStorage.getItem("ops_manifesto_seen") !== "1"; }
     catch { return true; }
   });
@@ -71,7 +90,7 @@ function App() {
     try { localStorage.setItem("ops_manifesto_seen", "1"); } catch {}
     setManifesto(false);
   };
-  const [theme, setTheme]             = useState(t.theme || "light");
+  const [theme, setTheme] = useState(t.theme || "light");
 
   useEffect(() => { setTheme(t.theme || "light"); }, [t.theme]);
 
@@ -109,7 +128,17 @@ function App() {
       );
     }
 
-    // sort: problems first (danger > warn > info > ok), then by updated desc
+    if (advFilters.priority) xs = xs.filter(f => f.priority === advFilters.priority);
+    if (advFilters.origin)   xs = xs.filter(f => f.origin === advFilters.origin);
+    if (advFilters.period) {
+      const now = new Date();
+      const cutoff = advFilters.period === "今日" ? new Date(now.getFullYear(), now.getMonth(), now.getDate())
+                   : advFilters.period === "今週" ? new Date(now - 7 * 86400000)
+                   : advFilters.period === "今月" ? new Date(now.getFullYear(), now.getMonth(), 1)
+                   : null;
+      if (cutoff) xs = xs.filter(f => new Date(f.updatedAt) >= cutoff);
+    }
+
     const toneOrder = { danger: 0, warn: 1, info: 2, ok: 3 };
     xs.sort((a, b) => {
       const ta = (window.PROBLEM_TYPES[a.problem] || { tone: "ok" }).tone;
@@ -118,7 +147,7 @@ function App() {
       return new Date(b.updatedAt) - new Date(a.updatedAt);
     });
     return xs;
-  }, [tab, kpi, filters, query]);
+  }, [tab, kpi, filters, advFilters, query, allFlows]);
 
   /* Counts */
   const counts = useMemo(() => ({
@@ -150,6 +179,39 @@ function App() {
   };
 
   const onFilter = (key, val) => setFilters(f => ({ ...f, [key]: val }));
+  const onAdvFilter = (key, val) => setAdvFilters(f => ({ ...f, [key]: f[key] === val ? null : val }));
+  const onClearAdv = () => {
+    setAdvFilters({ priority: null, period: null, origin: null });
+    setShowAdvFilter(false);
+  };
+
+  const pendingReviewCount = useMemo(() =>
+    allFlows.filter(f => f.problem === "pending_review" && f.chain.find(c => c.kind === "issue")?.id).length,
+    [allFlows]
+  );
+
+  const handleBulkReview = async () => {
+    const targets = allFlows.filter(f =>
+      f.problem === "pending_review" &&
+      f.chain.find(c => c.kind === "issue")?.id
+    );
+    setBulkState("running");
+    let ok = 0, failed = 0;
+    for (const f of targets) {
+      const issId = f.chain.find(c => c.kind === "issue").id;
+      try {
+        const resp = await fetch("/ops/actions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ targetType: "issue", targetId: issId, action: "review", payload: { action: "accept" } }),
+        });
+        if (resp.ok) ok++; else failed++;
+      } catch { failed++; }
+    }
+    setBulkResult({ ok, failed });
+    setBulkState("done");
+    fetchLiveFlows();
+  };
 
   /* Scope label for breadcrumb */
   const scope =
@@ -160,6 +222,8 @@ function App() {
     nav === "overview"  ? "Overview" :
     nav === "tasks"     ? "タスク登録" :
                           "業務フロー";
+
+  const isFlowPage = nav !== "tasks" && nav !== "overview" && nav !== "schedules" && nav !== "settings";
 
   return (
     <div className="app"
@@ -189,7 +253,19 @@ function App() {
         </main>
       )}
 
-      {nav !== "tasks" && nav !== "overview" && <main className="main">
+      {nav === "schedules" && (
+        <main className="main">
+          <window.SchedulePage />
+        </main>
+      )}
+
+      {nav === "settings" && (
+        <main className="main">
+          <window.SettingsPage theme={theme} setTheme={setTheme} t={t} setTweak={setTweak} />
+        </main>
+      )}
+
+      {isFlowPage && <main className="main">
         <div className="page-header">
           <div className="page-title">
             <h1>業務フロー監視</h1>
@@ -204,11 +280,21 @@ function App() {
             }}>
               現在時刻 <span className="mono">2026-05-17 10:00</span> · 30秒ごとに自動更新
             </span>
-            <button className="btn ghost">
+            <button className="btn ghost" onClick={() => exportFlowsCSV(filteredFlows)}>
               <Icon name="external" size={12} /> CSV
             </button>
-            <button className="btn primary">
+            <button className="btn primary"
+                    onClick={() => setBulkState("confirm")}
+                    disabled={bulkState === "running" || pendingReviewCount === 0}
+                    title={pendingReviewCount === 0 ? "PendingReview の Issue がありません" : undefined}>
               <Icon name="check" size={12} /> 全レビュー対象を一括処理
+              {pendingReviewCount > 0 && (
+                <span style={{
+                  marginLeft: 6, background: "rgba(255,255,255,0.25)", borderRadius: "50%",
+                  width: 18, height: 18, fontSize: 11, display: "inline-flex",
+                  alignItems: "center", justifyContent: "center", fontWeight: 700,
+                }}>{pendingReviewCount}</span>
+              )}
             </button>
           </div>
         </div>
@@ -221,7 +307,12 @@ function App() {
                           onTab={setTab}
                           tabs={tabs}
                           filters={filters}
-                          onFilter={onFilter} />
+                          onFilter={onFilter}
+                          showAdv={showAdvFilter}
+                          onToggleAdv={() => setShowAdvFilter(v => !v)}
+                          advFilters={advFilters}
+                          onAdvFilter={onAdvFilter}
+                          onClearAdv={onClearAdv} />
 
         <div className="flow-table">
           {filteredFlows.length === 0 ? (
@@ -236,6 +327,50 @@ function App() {
           )}
         </div>
       </main>}
+
+      {/* Bulk review confirm modal */}
+      {bulkState === "confirm" && (
+        <div className="drawer-scrim open" onClick={() => setBulkState(null)}>
+          <div onClick={e => e.stopPropagation()} style={{
+            position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
+            background: "var(--c-surface)", border: "1px solid var(--c-border)",
+            borderRadius: 12, padding: "28px 32px", width: 400, boxShadow: "var(--shadow-2)",
+            zIndex: 1001,
+          }}>
+            <h3 style={{ margin: "0 0 12px", fontSize: 16, color: "var(--c-text)" }}>
+              一括レビュー確認
+            </h3>
+            <p style={{ fontSize: 13, color: "var(--c-text-2)", margin: "0 0 20px", lineHeight: 1.6 }}>
+              PendingReview の Issue <strong>{pendingReviewCount}件</strong>を一括承認します。<br />
+              この操作は取り消せません。
+            </p>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button className="btn ghost" onClick={() => setBulkState(null)}>キャンセル</button>
+              <button className="btn primary" onClick={handleBulkReview}>実行</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk review result toast */}
+      {bulkState === "done" && bulkResult && (
+        <div style={{
+          position: "fixed", bottom: 24, right: 24,
+          background: bulkResult.failed > 0 ? "var(--c-warn-bg,#fffbeb)" : "var(--c-ok-bg,#f0fff4)",
+          border: `1px solid ${bulkResult.failed > 0 ? "var(--c-warn,#d97706)" : "var(--c-ok,#38a169)"}`,
+          color: bulkResult.failed > 0 ? "var(--c-warn,#d97706)" : "var(--c-ok,#38a169)",
+          borderRadius: 10, padding: "14px 20px", zIndex: 1000, fontSize: 13,
+          display: "flex", alignItems: "center", gap: 12,
+        }}>
+          <span>
+            一括処理完了: 成功 {bulkResult.ok}件
+            {bulkResult.failed > 0 ? ` / 失敗 ${bulkResult.failed}件` : ""}
+          </span>
+          <button style={{ background: "none", border: "none", cursor: "pointer",
+                           fontSize: 16, color: "inherit", lineHeight: 1 }}
+                  onClick={() => setBulkState(null)}>×</button>
+        </div>
+      )}
 
       <window.DetailDrawer flow={selectedFlow}
                            open={drawerOpen}
@@ -283,7 +418,12 @@ function App() {
                             onClick={() => setManifesto(true)} />
         <window.TweakButton label="フィルタをリセット"
                             secondary
-                            onClick={() => { setKpi(null); setTab("all"); setFilters({ building: null, entity: null, agent: null, range: "直近 7日" }); }} />
+                            onClick={() => {
+                              setKpi(null); setTab("all");
+                              setFilters({ building: null, entity: null, agent: null, range: "直近 7日" });
+                              setAdvFilters({ priority: null, period: null, origin: null });
+                              setShowAdvFilter(false);
+                            }} />
       </window.TweaksPanel>
     </div>
   );

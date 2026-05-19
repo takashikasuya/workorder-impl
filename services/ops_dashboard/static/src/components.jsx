@@ -171,38 +171,103 @@ function KPIBar({ items, selected, onSelect }) {
 }
 
 /* ------- Filter bar with primary tabs ------- */
-function FilterBar({ tab, onTab, tabs, filters, onFilter }) {
+function FilterBar({ tab, onTab, tabs, filters, onFilter, showAdv, onToggleAdv, advFilters, onAdvFilter, onClearAdv }) {
+  const advPriorities = ["P1", "P2", "P3"];
+  const advPeriods    = ["今日", "今週", "今月"];
+  const advOrigins    = [
+    { key: "report",   label: "Report" },
+    { key: "iot",      label: "IoTEvent" },
+    { key: "schedule", label: "スケジュール" },
+  ];
+  const advActiveCount = advFilters
+    ? [advFilters.priority, advFilters.period, advFilters.origin].filter(Boolean).length
+    : 0;
+
   return (
-    <div className="filter-bar">
-      <div className="tabs">
-        {tabs.map(t =>
-          <button key={t.key}
-                  className="tab"
-                  aria-pressed={tab === t.key}
-                  onClick={() => onTab(t.key)}>
-            <span>{t.label}</span>
-            <span className="count num">{t.count}</span>
-          </button>
-        )}
+    <div>
+      <div className="filter-bar">
+        <div className="tabs">
+          {tabs.map(t =>
+            <button key={t.key}
+                    className="tab"
+                    aria-pressed={tab === t.key}
+                    onClick={() => onTab(t.key)}>
+              <span>{t.label}</span>
+              <span className="count num">{t.count}</span>
+            </button>
+          )}
+        </div>
+
+        <div style={{ width: 12 }} />
+
+        <FilterChip label="ビル" value={filters.building} onClear={() => onFilter("building", null)} />
+        <FilterChip label="種別" value={filters.entity}   onClear={() => onFilter("entity", null)} />
+        <FilterChip label="期間" value={filters.range || "直近 7日"} />
+        <FilterChip label="担当" value={filters.agent}    onClear={() => onFilter("agent", null)} />
+
+        <div className="filler" style={{ flex: 1 }} />
+
+        <button className={"filter-chip" + (showAdv ? " is-active" : "")}
+                onClick={onToggleAdv}>
+          <Icon name="filter" size={12} />
+          詳細フィルタ
+          {advActiveCount > 0 && (
+            <span style={{
+              background: "var(--c-primary)", color: "#fff", borderRadius: "50%",
+              width: 16, height: 16, fontSize: 10, display: "inline-flex",
+              alignItems: "center", justifyContent: "center", marginLeft: 2,
+            }}>{advActiveCount}</span>
+          )}
+        </button>
       </div>
 
-      <div style={{ width: 12 }} />
-
-      <FilterChip label="ビル" value={filters.building} onClear={() => onFilter("building", null)} />
-      <FilterChip label="種別" value={filters.entity}   onClear={() => onFilter("entity", null)} />
-      <FilterChip label="期間" value={filters.range || "直近 7日"} />
-      <FilterChip label="担当" value={filters.agent}    onClear={() => onFilter("agent", null)} />
-
-      <div className="filler" style={{ flex: 1 }} />
-
-      <button className="filter-chip">
-        <Icon name="filter" size={12} />
-        詳細フィルタ
-      </button>
-      <button className="filter-chip">
-        <Icon name="external" size={12} />
-        CSV
-      </button>
+      {showAdv && (
+        <div style={{
+          padding: "10px 16px", background: "var(--c-surface-2,var(--c-surface))",
+          borderBottom: "1px solid var(--c-border)",
+          display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center",
+        }}>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <span style={{ fontSize: 11, color: "var(--c-text-3)", minWidth: 36 }}>優先度</span>
+            {advPriorities.map(p => (
+              <button key={p}
+                      className={"filter-chip" + (advFilters?.priority === p ? " is-active" : "")}
+                      onClick={() => onAdvFilter("priority", p)}>
+                {p}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <span style={{ fontSize: 11, color: "var(--c-text-3)", minWidth: 36 }}>更新</span>
+            {advPeriods.map(p => (
+              <button key={p}
+                      className={"filter-chip" + (advFilters?.period === p ? " is-active" : "")}
+                      onClick={() => onAdvFilter("period", p)}>
+                {p}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <span style={{ fontSize: 11, color: "var(--c-text-3)", minWidth: 36 }}>起源</span>
+            {advOrigins.map(o => (
+              <button key={o.key}
+                      className={"filter-chip" + (advFilters?.origin === o.key ? " is-active" : "")}
+                      onClick={() => onAdvFilter("origin", o.key)}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+          {advActiveCount > 0 && (
+            <button style={{
+              marginLeft: "auto", fontSize: 11, color: "var(--c-text-3)",
+              background: "none", border: "none", cursor: "pointer", padding: "4px 8px",
+            }}
+                    onClick={onClearAdv}>
+              クリア
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
