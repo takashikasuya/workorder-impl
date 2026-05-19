@@ -1,6 +1,50 @@
 /* CS-OPS-DASHBOARD — main app */
 
-const { useState, useEffect, useMemo } = React;
+const { useState, useEffect, useMemo, useCallback } = React;
+
+function transformBffFlows(bffFlows) {
+  return bffFlows.map(bff => {
+    const issue = bff.issue || {};
+    const ticket = bff.tickets?.[0];
+    const wo = bff.work_orders?.[0];
+    const payment = bff.payments?.[0];
+    const origin = issue.derived_from_type === "IoTEvent" ? "iot"
+                 : issue.derived_from_type === "Report"   ? "report"
+                 : "schedule";
+    const issueStatus = { Open: "open", PendingReview: "pending_review",
+                          UnderReview: "open", Resolved: "closed" }[issue.issue_status] || "open";
+    const woStatus = { Open: "wo_open", InProgress: "wo_in_progress",
+                       Completed: "wo_completed" }[wo?.work_order_status] || "wo_open";
+    const problem = bff.problem_flags?.[0] || "none";
+    return {
+      id: issue.issue_id,
+      priority: "P2",
+      origin,
+      building: null, floor: null, space: null,
+      title: issue.title || "(無題)",
+      woType: wo?.work_order_type || null,
+      issueType: issue.issue_type || null,
+      openedAt: issue.detected_at || new Date().toISOString(),
+      updatedAt: issue.detected_at || new Date().toISOString(),
+      problem,
+      note: issue.description || null,
+      chain: [
+        { kind: "observation", id: issue.derived_from_id || null,
+          status: origin === "report" ? "report_approved" : origin === "iot" ? "iot_received" : "not_started",
+          label: origin === "report" ? "Report" : origin === "iot" ? "IoTEvent" : "—" },
+        { kind: "issue", id: issue.issue_id, status: issueStatus, label: "Issue" },
+        { kind: "ticket", id: ticket?.ticket_id || null,
+          status: ticket ? "estimate_approved" : "not_started", label: "Ticket" },
+        { kind: "workorder", id: wo?.work_order_id || null,
+          status: wo ? woStatus : "not_started", label: "WO" },
+        { kind: "payment", id: payment?.payment_id || null,
+          status: payment ? "pay_paid" : "not_started", label: "Pay" },
+      ],
+      timeline: [],
+      isLive: true,
+    };
+  });
+}
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "density": "comfortable",
@@ -11,6 +55,7 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 
 function App() {
   const [t, setTweak] = window.useTweaks(TWEAK_DEFAULTS);
+  const [liveFlows, setLiveFlows]     = useState([]);
   const [nav, setNav]                 = useState("flows");
   const [tab, setTab]                 = useState("all");
   const [kpi, setKpi]                 = useState(null);
@@ -30,9 +75,20 @@ function App() {
 
   useEffect(() => { setTheme(t.theme || "light"); }, [t.theme]);
 
+  const fetchLiveFlows = useCallback(() => {
+    fetch("/ops/flows")
+      .then(r => r.ok ? r.json() : { flows: [] })
+      .then(data => setLiveFlows(transformBffFlows(data.flows || [])))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => { fetchLiveFlows(); }, [fetchLiveFlows]);
+
+  const allFlows = useMemo(() => [...liveFlows, ...window.FLOWS], [liveFlows]);
+
   /* Filter pipeline */
   const filteredFlows = useMemo(() => {
-    let xs = window.FLOWS.slice();
+    let xs = allFlows.slice();
 
     if (tab === "problems") xs = xs.filter(f => f.problem && f.problem !== "none");
     if (tab === "reports")  xs = xs.filter(f => f.origin === "report" && (f.problem === "stale_report" || f.chain[0].status === "report_pending"));
@@ -66,21 +122,21 @@ function App() {
 
   /* Counts */
   const counts = useMemo(() => ({
-    allFlows: window.FLOWS.length,
-    problems: window.FLOWS.filter(f => f.problem && f.problem !== "none").length,
-    reportQueue: window.FLOWS.filter(f => f.origin === "report" && f.chain[0].status === "report_pending").length,
-    emergency: window.FLOWS.filter(f => f.problem === "unsettled").length,
-  }), []);
+    allFlows: allFlows.length,
+    problems: allFlows.filter(f => f.problem && f.problem !== "none").length,
+    reportQueue: allFlows.filter(f => f.origin === "report" && f.chain[0]?.status === "report_pending").length,
+    emergency: allFlows.filter(f => f.problem === "unsettled").length,
+  }), [allFlows]);
 
   const tabs = [
-    { key: "all",      label: "すべて",         count: window.FLOWS.length },
+    { key: "all",      label: "すべて",         count: counts.allFlows },
     { key: "problems", label: "問題のみ",       count: counts.problems },
     { key: "reports",  label: "Report 評価",   count: counts.reportQueue },
     { key: "emergency_settlement", label: "緊急精算", count: counts.emergency },
   ];
 
   const selectedFlow = useMemo(() =>
-    window.FLOWS.find(f => f.id === selected), [selected]);
+    allFlows.find(f => f.id === selected), [selected, allFlows]);
 
   const onSelectFlow = (id) => {
     setSelected(id);
@@ -129,7 +185,7 @@ function App() {
 
       {nav === "overview" && (
         <main className="main">
-          <OverviewPanel counts={counts} />
+          <OverviewPanel counts={counts} allFlows={allFlows} />
         </main>
       )}
 
@@ -183,7 +239,8 @@ function App() {
 
       <window.DetailDrawer flow={selectedFlow}
                            open={drawerOpen}
-                           onClose={() => setDrawerOpen(false)} />
+                           onClose={() => setDrawerOpen(false)}
+                           onActionDone={() => fetchLiveFlows()} />
 
       <window.Manifesto open={manifestoOpen}
                         onClose={closeManifesto} />
@@ -232,8 +289,8 @@ function App() {
   );
 }
 
-function OverviewPanel({ counts }) {
-  const flows = window.FLOWS;
+function OverviewPanel({ counts, allFlows }) {
+  const flows = allFlows || window.FLOWS;
   const byBuilding = window.BUILDINGS.map(b => ({
     ...b,
     total: flows.filter(f => f.building === b.id).length,

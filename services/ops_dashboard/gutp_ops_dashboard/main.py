@@ -169,22 +169,53 @@ async def add_task_proxy(wo_id: str, body: ServiceTaskCreate) -> dict:
     return resp.json()
 
 
+@app.get("/ops/tickets/{ticket_id}/estimates")
+async def list_ticket_estimates_proxy(ticket_id: str) -> list:
+    """Ticket に紐づく Estimate 一覧を backend から取得する。"""
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.get(f"{BACKEND_URL}/tickets/{ticket_id}/estimates")
+    if resp.status_code != 200:
+        raise HTTPException(resp.status_code, detail=resp.text)
+    return resp.json()
+
+
 @app.post("/ops/actions")
 async def post_action(action: dict) -> dict:
     """FUN-OPS-003 — 管理操作を対応 CS の API へ転送する。"""
     target_type = action.get("targetType")
     target_id = action.get("targetId")
     act = action.get("action")
+    payload = action.get("payload", {})
 
     if target_type == "issue":
         url = f"{BACKEND_URL}/issues/{target_id}/{act}"
+        method = "patch"
     elif target_type == "workorder":
         url = f"{BACKEND_URL}/work-orders/{target_id}/{act}"
+        method = "patch"
     elif target_type == "ticket":
         url = f"{BACKEND_URL}/tickets/{target_id}/{act}"
+        method = "patch"
+    elif target_type == "estimate":
+        url = f"{BACKEND_URL}/estimates/{target_id}/{act}"
+        method = "patch"
+    elif target_type == "report":
+        url = f"{BACKEND_URL}/reports/{target_id}/{act}"
+        method = "post"
+    elif target_type == "ticket_create":
+        url = f"{BACKEND_URL}/tickets"
+        method = "post"
+    elif target_type == "estimate_create":
+        url = f"{BACKEND_URL}/estimates"
+        method = "post"
     else:
         raise HTTPException(400, detail=f"Unknown targetType: {target_type}")
 
     async with httpx.AsyncClient() as client:
-        resp = await client.patch(url, json=action.get("payload", {}))
-    return {"accepted": True, "forwardedTo": url, "result": resp.json()}
+        resp = await (client.patch(url, json=payload) if method == "patch"
+                      else client.post(url, json=payload))
+
+    if resp.status_code not in (200, 201, 204):
+        raise HTTPException(resp.status_code, detail=resp.text)
+    result = resp.json() if resp.content and resp.status_code != 204 else {}
+    return {"accepted": True, "forwardedTo": url, "result": result}

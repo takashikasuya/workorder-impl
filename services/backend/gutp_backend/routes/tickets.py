@@ -41,6 +41,13 @@ async def create_estimate(body: EstimateCreate) -> Estimate:
     return record
 
 
+@router.get("/tickets/{ticket_id}/estimates")
+async def list_ticket_estimates(ticket_id: str) -> list[Estimate]:
+    if ticket_id not in state.tickets:
+        raise HTTPException(404, detail="Ticket not found")
+    return [e for e in state.estimates.values() if e.ticket_id == ticket_id]
+
+
 @router.patch("/estimates/{estimate_id}/approve")
 async def approve_estimate(estimate_id: str) -> Estimate:
     record = state.estimates.get(estimate_id)

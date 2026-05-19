@@ -62,3 +62,31 @@ async def evaluate_report(report_id: str) -> None:
     """obs.report.evaluated — 評価済みとしてマークし pending キューから除去する (FUN-OBS-007)."""
     from ..tasks.obs_analyzer import handle_report_evaluated
     await handle_report_evaluated(report_id)
+
+
+@router.post("/reports/{report_id}/approve")
+async def approve_report(report_id: str) -> dict:
+    """FM が Report を手動承認して Issue を生成する (FUN-OBS-004)."""
+    record = state.reports.get(report_id)
+    if not record:
+        raise HTTPException(404, detail="Report not found")
+    existing = next((i for i in state.issues.values() if i.derived_from_id == report_id), None)
+    if not existing:
+        import uuid as _uuid
+        from gutp.schemas.issue import Issue, IssueType
+        issue = Issue(
+            issue_id=str(_uuid.uuid4()),
+            title=f"[承認] {record.title}",
+            issue_type=IssueType.FACILITY_ASSET,
+            derived_from_id=report_id,
+            derived_from_type="Report",
+            description=record.report_comment,
+            is_standard=False,
+        )
+        state.issues[issue.issue_id] = issue
+        issue_id = issue.issue_id
+    else:
+        issue_id = existing.issue_id
+    from ..tasks.obs_analyzer import handle_report_evaluated
+    await handle_report_evaluated(report_id)
+    return {"issue_id": issue_id, "report_id": report_id}

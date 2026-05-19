@@ -1,5 +1,83 @@
 /* Detail drawer — vertical chain, timeline, action cards */
 
+const { useState: useDrawerState } = React;
+
+async function executeAction(actionKey, flow) {
+  const obs = flow.chain.find(c => c.kind === "observation");
+  const iss = flow.chain.find(c => c.kind === "issue");
+  const tkt = flow.chain.find(c => c.kind === "ticket");
+  const wo  = flow.chain.find(c => c.kind === "workorder");
+
+  const callOps = (req) => fetch("/ops/actions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+
+  let resp;
+  switch (actionKey) {
+    case "approve_report":
+      if (!obs?.id) throw new Error("Observation IDがありません。デモデータのフローには実行できません。");
+      resp = await callOps({ targetType: "report", targetId: obs.id, action: "approve" });
+      break;
+
+    case "reject_report":
+      if (!obs?.id) throw new Error("Observation IDがありません。デモデータのフローには実行できません。");
+      resp = await callOps({ targetType: "report", targetId: obs.id, action: "evaluate" });
+      break;
+
+    case "confirm_issue":
+      if (!iss?.id) throw new Error("Issue IDがありません。");
+      resp = await callOps({ targetType: "issue", targetId: iss.id, action: "review",
+                             payload: { action: "accept" } });
+      break;
+
+    case "reject_issue":
+      if (!iss?.id) throw new Error("Issue IDがありません。");
+      resp = await callOps({ targetType: "issue", targetId: iss.id, action: "review",
+                             payload: { action: "reject" } });
+      break;
+
+    case "approve_estimate": {
+      if (!tkt?.id) throw new Error("Ticket IDがありません。");
+      const estsResp = await fetch(`/ops/tickets/${tkt.id}/estimates`);
+      if (!estsResp.ok) throw new Error("Estimate一覧の取得に失敗しました。");
+      const ests = await estsResp.json();
+      if (!ests.length) throw new Error("承認待ちのEstimateがありません。");
+      const pending = ests.find(e => e.estimate_status === "Pending") || ests[ests.length - 1];
+      resp = await callOps({ targetType: "estimate", targetId: pending.estimate_id, action: "approve" });
+      break;
+    }
+
+    case "post_ticket":
+      resp = await callOps({
+        targetType: "ticket_create",
+        payload: { title: `[事後] ${flow.title}`,
+                   addresses_issue_ids: iss?.id ? [iss.id] : [], priority: 10 },
+      });
+      break;
+
+    case "post_estimate": {
+      if (!tkt?.id) throw new Error("Ticket IDがありません。");
+      resp = await callOps({
+        targetType: "estimate_create",
+        payload: { ticket_id: tkt.id, title: `[遡及] ${flow.title}`,
+                   estimated_cost: "0", estimated_duration: "P1D" },
+      });
+      break;
+    }
+
+    default:
+      throw new Error(`「${actionKey}」は未実装です。`);
+  }
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.detail || `HTTP ${resp.status}`);
+  }
+  return resp.json();
+}
+
 function VerticalChain({ flow }) {
   const labelFor = (kind) => ({
     observation: "Observation", issue: "Issue", ticket: "Ticket",
@@ -172,7 +250,27 @@ function pickActions(flow) {
   return actions;
 }
 
-function DetailDrawer({ flow, open, onClose }) {
+function DetailDrawer({ flow, open, onClose, onActionDone }) {
+  const [executing, setExecuting] = useDrawerState(null);
+  const [actionResult, setActionResult] = useDrawerState(null);
+
+  const handleAction = async (actionKey) => {
+    setExecuting(actionKey);
+    setActionResult(null);
+    try {
+      const data = await executeAction(actionKey, flow);
+      setActionResult({ ok: true, key: actionKey, data });
+      if (onActionDone) onActionDone(actionKey, data);
+    } catch (err) {
+      setActionResult({ ok: false, key: actionKey, message: err.message });
+    } finally {
+      setExecuting(null);
+    }
+  };
+
+  // Reset result when flow changes
+  React.useEffect(() => { setActionResult(null); }, [flow?.id]);
+
   if (!flow) {
     return <aside className="drawer" />;
   }
@@ -227,17 +325,40 @@ function DetailDrawer({ flow, open, onClose }) {
           {/* Actions */}
           <div>
             <h3 className="section-title">推奨アクション · 対応CSへ転送</h3>
+
+            {actionResult && (
+              <div style={{
+                padding: "10px 14px", borderRadius: 8, marginBottom: 10, fontSize: 12.5,
+                background: actionResult.ok ? "var(--c-ok-bg,#f0fff4)" : "var(--c-danger-bg,#fff0f0)",
+                border: "1px solid " + (actionResult.ok ? "var(--c-ok,#38a169)" : "var(--c-danger,#e53e3e)"),
+                color: actionResult.ok ? "var(--c-ok,#38a169)" : "var(--c-danger,#e53e3e)",
+              }}>
+                {actionResult.ok
+                  ? <>✓ 完了しました。{actionResult.data?.result?.issue_id && ` Issue ID: ${actionResult.data.result.issue_id}`}</>
+                  : <>✗ {actionResult.message}</>}
+              </div>
+            )}
+
             <div className="actions-grid">
-              {actions.map(a => (
-                <button key={a.key}
-                        className={"action-card" + (a.tone === "danger" ? " danger" : "")}>
-                  <span className="at">{a.at}</span>
-                  <span className="desc">{a.desc}</span>
-                  <span className="cs-ref" style={{ marginTop: 4, alignSelf: "flex-start" }}>
-                    {a.forward}
-                  </span>
-                </button>
-              ))}
+              {actions.map(a => {
+                const isRunning = executing === a.key;
+                return (
+                  <button key={a.key}
+                          className={"action-card" + (a.tone === "danger" ? " danger" : "")}
+                          onClick={() => handleAction(a.key)}
+                          disabled={!!executing}
+                          style={{ opacity: executing && !isRunning ? 0.5 : 1,
+                                   cursor: executing ? "not-allowed" : "pointer" }}>
+                    <span className="at">
+                      {isRunning ? "処理中…" : a.at}
+                    </span>
+                    <span className="desc">{a.desc}</span>
+                    <span className="cs-ref" style={{ marginTop: 4, alignSelf: "flex-start" }}>
+                      {a.forward}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
