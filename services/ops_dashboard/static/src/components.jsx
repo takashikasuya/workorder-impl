@@ -96,7 +96,7 @@ function RailItem({ id, label, icon, badge, active, onChange, problem }) {
 }
 
 /* ------- Top bar ------- */
-function TopBar({ onOpenManifesto, scope, onToggleTheme, theme }) {
+function TopBar({ onOpenManifesto, scope, onToggleTheme, theme, query, onQuery }) {
   return (
     <header className="topbar">
       <div className="crumbs">
@@ -109,8 +109,20 @@ function TopBar({ onOpenManifesto, scope, onToggleTheme, theme }) {
 
       <div className="search">
         <Icon name="search" size={13} />
-        <input placeholder="フロー / Issue ID / Ticket / 担当者を検索…" />
-        <span className="kbd">⌘K</span>
+        <input
+          placeholder="フロー / Issue ID / Ticket / 担当者を検索…"
+          value={query}
+          onChange={e => onQuery(e.target.value)}
+        />
+        {query
+          ? <button
+              style={{ background: "none", border: "none", cursor: "pointer",
+                       color: "var(--c-text-3)", padding: "0 2px", lineHeight: 1 }}
+              onClick={() => onQuery("")}
+              aria-label="検索クリア">
+              <Icon name="x" size={12} />
+            </button>
+          : <span className="kbd">⌘K</span>}
       </div>
 
       <div className="filler" />

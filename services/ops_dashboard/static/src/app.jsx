@@ -14,6 +14,7 @@ function App() {
   const [nav, setNav]                 = useState("flows");
   const [tab, setTab]                 = useState("all");
   const [kpi, setKpi]                 = useState(null);
+  const [query, setQuery]             = useState("");
   const [filters, setFilters]         = useState({ building: null, entity: null, agent: null, range: "直近 7日" });
   const [selected, setSelected]       = useState(null);
   const [drawerOpen, setDrawerOpen]   = useState(false);
@@ -41,6 +42,17 @@ function App() {
 
     if (filters.building) xs = xs.filter(f => f.building === filters.building);
 
+    if (query.trim()) {
+      const q = query.trim().toLowerCase();
+      xs = xs.filter(f =>
+        f.title.toLowerCase().includes(q) ||
+        f.id.toLowerCase().includes(q) ||
+        (f.space || "").toLowerCase().includes(q) ||
+        (f.floor || "").toLowerCase().includes(q) ||
+        f.chain.some(c => (c.id || "").toLowerCase().includes(q))
+      );
+    }
+
     // sort: problems first (danger > warn > info > ok), then by updated desc
     const toneOrder = { danger: 0, warn: 1, info: 2, ok: 3 };
     xs.sort((a, b) => {
@@ -50,7 +62,7 @@ function App() {
       return new Date(b.updatedAt) - new Date(a.updatedAt);
     });
     return xs;
-  }, [tab, kpi, filters]);
+  }, [tab, kpi, filters, query]);
 
   /* Counts */
   const counts = useMemo(() => ({
@@ -105,7 +117,9 @@ function App() {
       <window.TopBar onOpenManifesto={() => setManifesto(true)}
                      scope={scope}
                      theme={theme}
-                     onToggleTheme={onToggleTheme} />
+                     onToggleTheme={onToggleTheme}
+                     query={query}
+                     onQuery={setQuery} />
 
       {nav === "tasks" && (
         <main className="main">
@@ -113,7 +127,13 @@ function App() {
         </main>
       )}
 
-      {nav !== "tasks" && <main className="main">
+      {nav === "overview" && (
+        <main className="main">
+          <OverviewPanel counts={counts} />
+        </main>
+      )}
+
+      {nav !== "tasks" && nav !== "overview" && <main className="main">
         <div className="page-header">
           <div className="page-title">
             <h1>業務フロー監視</h1>
@@ -208,6 +228,148 @@ function App() {
                             secondary
                             onClick={() => { setKpi(null); setTab("all"); setFilters({ building: null, entity: null, agent: null, range: "直近 7日" }); }} />
       </window.TweaksPanel>
+    </div>
+  );
+}
+
+function OverviewPanel({ counts }) {
+  const flows = window.FLOWS;
+  const byBuilding = window.BUILDINGS.map(b => ({
+    ...b,
+    total: flows.filter(f => f.building === b.id).length,
+    problems: flows.filter(f => f.building === b.id && f.problem && f.problem !== "none").length,
+  }));
+  const byOrigin = ["report", "iot", "schedule"].map(o => ({
+    key: o,
+    ...window.ORIGIN_META[o],
+    count: flows.filter(f => f.origin === o).length,
+  }));
+  const kpiBreakdown = window.PROBLEM_KPIS.map(k => ({
+    ...k,
+    tone: (window.PROBLEM_TYPES[k.key] || {}).tone || "info",
+  }));
+
+  const cell = { padding: "10px 14px", borderBottom: "1px solid var(--c-border)", fontSize: 13 };
+  const statCard = (label, value, sub, tone) => {
+    const bg = { danger: "var(--c-danger-bg,#fff0f0)", warn: "var(--c-warn-bg,#fffbeb)",
+                 ok: "var(--c-ok-bg,#f0fff4)", info: "var(--c-info-bg,#ebf8ff)" }[tone] || "var(--c-surface)";
+    const col = { danger: "var(--c-danger,#e53e3e)", warn: "var(--c-warn,#d97706)",
+                  ok: "var(--c-ok,#38a169)", info: "var(--c-info,#2b6cb0)" }[tone] || "var(--c-text)";
+    return (
+      <div style={{ background: bg, border: `1px solid ${col}22`, borderRadius: 10,
+                    padding: "14px 18px", minWidth: 120 }}>
+        <div style={{ fontSize: 11, color: "var(--c-text-3)", marginBottom: 4 }}>{label}</div>
+        <div style={{ fontSize: 28, fontWeight: 700, color: col, lineHeight: 1 }}>{value}</div>
+        {sub && <div style={{ fontSize: 11, color: "var(--c-text-3)", marginTop: 4 }}>{sub}</div>}
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 24px 48px" }}>
+      <div className="page-header" style={{ paddingTop: 0 }}>
+        <div className="page-title">
+          <h1>Overview</h1>
+          <p>全フローの状態サマリー。問題のあるフローから対応してください。</p>
+        </div>
+      </div>
+
+      {/* 大まかな件数 */}
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 28 }}>
+        {statCard("監視中フロー", flows.length, "全チェーン", "info")}
+        {statCard("要対応", counts.problems, "問題フラグあり", "warn")}
+        {statCard("Report 評価待ち", counts.reportQueue, "未評価 Report", "warn")}
+        {statCard("正常", flows.filter(f => !f.problem || f.problem === "none").length, "問題なし", "ok")}
+      </div>
+
+      {/* 問題種別内訳 */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10, color: "var(--c-text)" }}>問題種別</div>
+        <table style={{ width: "100%", borderCollapse: "collapse",
+                        background: "var(--c-surface)", borderRadius: 10, overflow: "hidden",
+                        border: "1px solid var(--c-border)" }}>
+          <thead>
+            <tr style={{ background: "var(--c-surface-2,var(--c-surface))" }}>
+              {["種別", "件数", "傾向", "説明"].map(h =>
+                <th key={h} style={{ ...cell, fontWeight: 600, fontSize: 11,
+                                     color: "var(--c-text-3)", textAlign: "left" }}>{h}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {kpiBreakdown.map(k => {
+              const dot = { danger: "#e53e3e", warn: "#d97706", info: "#2b6cb0", ok: "#38a169" }[k.tone] || "#999";
+              return (
+                <tr key={k.key}>
+                  <td style={cell}>
+                    <span style={{ display: "inline-block", width: 8, height: 8,
+                                   borderRadius: "50%", background: dot, marginRight: 8 }} />
+                    {k.label}
+                  </td>
+                  <td style={{ ...cell, fontWeight: 700 }}>{k.count}</td>
+                  <td style={{ ...cell, color: k.trend?.startsWith("+") ? "#e53e3e" : "var(--c-text-3)" }}>
+                    {k.trend ? `${k.trend} 24h` : "—"}
+                  </td>
+                  <td style={{ ...cell, color: "var(--c-text-3)", fontSize: 12 }}>{k.desc}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+        {/* ビル別 */}
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10, color: "var(--c-text)" }}>ビル別</div>
+          <table style={{ width: "100%", borderCollapse: "collapse",
+                          background: "var(--c-surface)", borderRadius: 10, overflow: "hidden",
+                          border: "1px solid var(--c-border)" }}>
+            <thead>
+              <tr style={{ background: "var(--c-surface-2,var(--c-surface))" }}>
+                {["ビル", "合計", "要対応"].map(h =>
+                  <th key={h} style={{ ...cell, fontWeight: 600, fontSize: 11,
+                                       color: "var(--c-text-3)", textAlign: "left" }}>{h}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {byBuilding.map(b => (
+                <tr key={b.id}>
+                  <td style={cell}>{b.name}</td>
+                  <td style={{ ...cell, fontWeight: 600 }}>{b.total}</td>
+                  <td style={{ ...cell, color: b.problems > 0 ? "#d97706" : "var(--c-text-3)",
+                               fontWeight: b.problems > 0 ? 700 : 400 }}>
+                    {b.problems > 0 ? b.problems : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* 起源別 */}
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10, color: "var(--c-text)" }}>起源別</div>
+          <table style={{ width: "100%", borderCollapse: "collapse",
+                          background: "var(--c-surface)", borderRadius: 10, overflow: "hidden",
+                          border: "1px solid var(--c-border)" }}>
+            <thead>
+              <tr style={{ background: "var(--c-surface-2,var(--c-surface))" }}>
+                {["起源", "件数"].map(h =>
+                  <th key={h} style={{ ...cell, fontWeight: 600, fontSize: 11,
+                                       color: "var(--c-text-3)", textAlign: "left" }}>{h}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {byOrigin.map(o => (
+                <tr key={o.key}>
+                  <td style={cell}>{o.label}</td>
+                  <td style={{ ...cell, fontWeight: 600 }}>{o.count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
