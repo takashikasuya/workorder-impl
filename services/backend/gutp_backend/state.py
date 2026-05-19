@@ -7,7 +7,6 @@ import os
 from datetime import datetime
 
 import nats
-
 from gutp.clients.building_os import BuildingOSClient
 from gutp.schemas.building import BuildingTopology, DeviceNode, SpaceNode
 from gutp.schemas.issue import Issue

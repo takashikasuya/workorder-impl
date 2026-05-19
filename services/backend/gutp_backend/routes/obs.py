@@ -5,8 +5,8 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
-from gutp.connectors.rest.router import make_rest_router
 from gutp.connectors.base import IngressEvent
+from gutp.connectors.rest.router import make_rest_router
 from gutp.schemas.observation import IoTEvent, IoTEventCreate, Report, ReportCreate
 
 from .. import state
@@ -73,6 +73,7 @@ async def approve_report(report_id: str) -> dict:
     existing = next((i for i in state.issues.values() if i.derived_from_id == report_id), None)
     if not existing:
         import uuid as _uuid
+
         from gutp.schemas.issue import Issue, IssueType
         issue = Issue(
             issue_id=str(_uuid.uuid4()),

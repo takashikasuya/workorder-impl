@@ -7,7 +7,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
 from gutp.events.subjects import WO
-from gutp.schemas.ticket import Estimate, Ticket
+from gutp.schemas.ticket import Estimate
 from gutp.schemas.workorder import (
     Booking,
     BookingCreate,

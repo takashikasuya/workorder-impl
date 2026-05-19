@@ -7,7 +7,7 @@ import os
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from gutp.schemas.issue import Issue, IssueType
+from gutp.schemas.issue import Issue
 from gutp.schemas.ticket import Estimate, EstimateStatus, Ticket
 
 from .. import state
